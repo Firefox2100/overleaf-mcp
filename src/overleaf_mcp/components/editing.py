@@ -3,7 +3,7 @@ import re
 
 from overleaf_mcp.models.editing import OutlineEntry, SearchMatch
 from overleaf_mcp.models.overleaf_session import OverleafSession
-from overleaf_mcp.models.project_tree import TreeFolder
+from overleaf_mcp.models.project_tree import flatten_docs
 from overleaf_mcp.services.overleaf.file import OverleafFileService
 from overleaf_mcp.services.overleaf.realtime import OverleafRealtimeService
 
@@ -46,7 +46,7 @@ class EditingComponent:
         :return:
         """
         tree = await self._realtime.get_tree(session, project_id)
-        docs = _flatten_docs(tree)
+        docs = flatten_docs(tree)
         contents = await asyncio.gather(*(self._file.read_doc(session, project_id, doc_id) for _, doc_id in docs))
 
         pattern = re.compile(query) if regex else None
@@ -104,14 +104,6 @@ class EditingComponent:
         selected = lines[start_line - 1:end_line]
         width = len(str(min(end_line, len(lines))))
         return "\n".join(f"{start_line + i:>{width}}\t{line}" for i, line in enumerate(selected))
-
-
-def _flatten_docs(folder: TreeFolder, prefix: str = "") -> list[tuple[str, str]]:
-    docs = [(f"{prefix}/{doc.name}" if prefix else doc.name, doc.id) for doc in folder.docs]
-    for child in folder.folders:
-        child_prefix = f"{prefix}/{child.name}" if prefix else child.name
-        docs += _flatten_docs(child, child_prefix)
-    return docs
 
 
 def _search_text(path: str, content: str, query: str, pattern: re.Pattern | None) -> list[SearchMatch]:

@@ -1,6 +1,6 @@
 from overleaf_mcp.models.entity import EntityType, FileEntry
 from overleaf_mcp.models.overleaf_session import OverleafSession
-from overleaf_mcp.models.project_tree import TreeFolder
+from overleaf_mcp.models.project_tree import TreeFolder, path_segments, resolve_entity, resolve_folder
 from overleaf_mcp.services.overleaf.file import OverleafFileService
 from overleaf_mcp.services.overleaf.realtime import OverleafRealtimeService
 
@@ -23,7 +23,7 @@ class FilesComponent:
         :return:
         """
         tree = await self._realtime.get_tree(session, project_id)
-        folder = _resolve_folder(tree, path)
+        folder = resolve_folder(tree, path)
         return (
             [FileEntry(name=f.name, type="folder") for f in folder.folders]
             + [FileEntry(name=d.name, type="doc") for d in folder.docs]
@@ -36,7 +36,7 @@ class FilesComponent:
         :return:
         """
         tree = await self._realtime.get_tree(session, project_id)
-        entity_type, entity_id = _resolve_entity(tree, path)
+        entity_type, entity_id = resolve_entity(tree, path)
         _require_doc(path, entity_type)
         return await self._file.read_doc(session, project_id, entity_id)
 
@@ -48,7 +48,7 @@ class FilesComponent:
         """
         tree = await self._realtime.get_tree(session, project_id)
         parent_path, name = _split_path(path)
-        parent = _resolve_folder(tree, parent_path)
+        parent = resolve_folder(tree, parent_path)
         if _find_child(parent, name) is not None:
             raise FilesError(f"{path!r} already exists")
 
@@ -62,7 +62,7 @@ class FilesComponent:
         :return:
         """
         tree = await self._realtime.get_tree(session, project_id)
-        entity_type, entity_id = _resolve_entity(tree, path)
+        entity_type, entity_id = resolve_entity(tree, path)
         if entity_type == "folder":
             raise FilesError(f"{path!r} is a folder")
         await self._file.rename_entity(session, project_id, entity_type, entity_id, name)
@@ -73,7 +73,7 @@ class FilesComponent:
         :return:
         """
         tree = await self._realtime.get_tree(session, project_id)
-        entity_type, entity_id = _resolve_entity(tree, path)
+        entity_type, entity_id = resolve_entity(tree, path)
         _require_doc(path, entity_type)
         await self._realtime.replace_doc(session, project_id, entity_id, content)
 
@@ -84,7 +84,7 @@ class FilesComponent:
         :return:
         """
         tree = await self._realtime.get_tree(session, project_id)
-        entity_type, entity_id = _resolve_entity(tree, path)
+        entity_type, entity_id = resolve_entity(tree, path)
         _require_doc(path, entity_type)
         await self._realtime.patch_doc(session, project_id, entity_id, find, replace)
 
@@ -94,7 +94,7 @@ class FilesComponent:
         :return:
         """
         tree = await self._realtime.get_tree(session, project_id)
-        entity_type, entity_id = _resolve_entity(tree, path)
+        entity_type, entity_id = resolve_entity(tree, path)
         if entity_type == "folder":
             raise FilesError(f"{path!r} is a folder")
         await self._file.delete_entity(session, project_id, entity_type, entity_id)
@@ -106,14 +106,10 @@ def _require_doc(path: str, entity_type: EntityType) -> None:
 
 
 def _split_path(path: str) -> tuple[str, str]:
-    segments = _segments(path)
+    segments = path_segments(path)
     if not segments:
         raise FilesError("Path must not be empty")
     return "/".join(segments[:-1]), segments[-1]
-
-
-def _segments(path: str) -> list[str]:
-    return [segment for segment in path.strip("/").split("/") if segment]
 
 
 def _find_child(folder: TreeFolder, name: str) -> EntityType | None:
@@ -124,28 +120,3 @@ def _find_child(folder: TreeFolder, name: str) -> EntityType | None:
     if any(f.name == name for f in folder.file_refs):
         return "file"
     return None
-
-
-def _resolve_folder(root: TreeFolder, path: str) -> TreeFolder:
-    folder = root
-    for segment in _segments(path):
-        match = next((f for f in folder.folders if f.name == segment), None)
-        if match is None:
-            raise FilesError(f"No such folder: {path!r}")
-        folder = match
-    return folder
-
-
-def _resolve_entity(root: TreeFolder, path: str) -> tuple[EntityType, str]:
-    parent_path, name = _split_path(path)
-    folder = _resolve_folder(root, parent_path)
-    for child in folder.folders:
-        if child.name == name:
-            return "folder", child.id
-    for child in folder.docs:
-        if child.name == name:
-            return "doc", child.id
-    for child in folder.file_refs:
-        if child.name == name:
-            return "file", child.id
-    raise FilesError(f"No such path: {path!r}")

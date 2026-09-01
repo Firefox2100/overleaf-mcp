@@ -65,3 +65,35 @@ class OverleafProjectService:
         )
         if response.status_code != 200:
             raise OverleafProjectError(f"Deleting project failed with status {response.status_code}: {response.text}")
+
+    async def update_settings(
+            self,
+            session: OverleafSession,
+            project_id: str,
+            *,
+            compiler: str | None = None,
+            root_doc_id: str | None = None,
+            main_bibliography_doc_id: str | None = None,
+            spell_check_language: str | None = None,
+    ) -> None:
+        """
+        Update project settings. Only fields passed as non-None are changed.
+        :return:
+        """
+        body = {"_csrf": session.csrf_token}
+        if compiler is not None:
+            body["compiler"] = compiler
+        if root_doc_id is not None:
+            body["rootDocId"] = root_doc_id
+        if main_bibliography_doc_id is not None:
+            body["mainBibliographyDocId"] = main_bibliography_doc_id
+        if spell_check_language is not None:
+            body["spellCheckLanguage"] = spell_check_language
+
+        response = await self._client.post(
+            f"/project/{project_id}/settings",
+            json=body,
+            headers=session.auth_headers,
+        )
+        if response.status_code != 204:
+            raise OverleafProjectError(f"Updating settings failed with status {response.status_code}: {response.text}")

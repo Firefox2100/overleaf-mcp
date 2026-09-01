@@ -1,5 +1,6 @@
 from overleaf_mcp.models.overleaf_session import OverleafSession
-from overleaf_mcp.models.project_tree import TreeFolder
+from overleaf_mcp.models.project_config import ProjectConfig
+from overleaf_mcp.models.project_tree import TreeFolder, find_doc_path
 
 from .socket_io import SocketIOClient
 
@@ -20,13 +21,37 @@ class OverleafRealtimeService:
     async def get_tree(self, session: OverleafSession, project_id: str) -> TreeFolder:
         """
         Fetch the project's live folder tree (with entity ids), by joining
-        the project over the real-time API.
+        the project over the real-time API. Not cached: this process is
+        short-lived (spawned per LLM turn), and without a held-open socket
+        there's no way to detect staleness, so every caller re-fetches.
         :return:
         """
+        raw = await self._join_project(session, project_id)
+        return TreeFolder.model_validate(raw["rootFolder"][0])
+
+    async def get_project_info(self, session: OverleafSession, project_id: str) -> ProjectConfig:
+        """
+        Fetch a project's compile-relevant configuration (compiler, root
+        document, spell-check language, TeX Live image) plus resolved
+        paths for the root and bibliography documents, by joining the
+        project over the real-time API. CE has no plain REST endpoint for
+        this.
+        :return:
+        """
+        raw = await self._join_project(session, project_id)
+        config = ProjectConfig.model_validate(raw)
+        tree = TreeFolder.model_validate(raw["rootFolder"][0])
+        return config.model_copy(update={
+            "root_doc_path": find_doc_path(tree, config.root_doc_id) if config.root_doc_id else None,
+            "main_bibliography_doc_path": (
+                find_doc_path(tree, config.main_bibliography_doc_id) if config.main_bibliography_doc_id else None
+            ),
+        })
+
+    async def _join_project(self, session: OverleafSession, project_id: str) -> dict:
         async with SocketIOClient(self._base_url, session.cookie_header, {"projectId": project_id}) as sio:
             reply = await sio.call("joinProject", [{"project_id": project_id}])
-            root = reply.args[0]["project"]["rootFolder"][0]
-            return TreeFolder.model_validate(root)
+            return reply.args[0]["project"]
 
     async def replace_doc(self, session: OverleafSession, project_id: str, doc_id: str, new_text: str) -> None:
         """
