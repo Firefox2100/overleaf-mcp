@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 
 dynamic = ["version"]
 dependencies = [
+    "bibtexparser<2",
     "fastmcp>=4.0.0",
     "filelock>=3.32.5",
     "httpx>=0.28.1",

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from fastmcp import Context, FastMCP
 
 from overleaf_mcp.components.auth import AuthComponent
+from overleaf_mcp.components.citation import CitationComponent
 from overleaf_mcp.components.config import ConfigComponent
 from overleaf_mcp.components.editing import EditingComponent
 from overleaf_mcp.components.files import FilesComponent
@@ -23,6 +24,7 @@ class AppContext:
     files_component: FilesComponent
     editing_component: EditingComponent
     config_component: ConfigComponent
+    citation_component: CitationComponent
     overleaf_session: OverleafSession
 
 
@@ -77,3 +79,7 @@ def get_editing_component(ctx: Context) -> EditingComponent:
 
 def get_config_component(ctx: Context) -> ConfigComponent:
     return get_app_context(ctx).config_component
+
+
+def get_citation_component(ctx: Context) -> CitationComponent:
+    return get_app_context(ctx).citation_component

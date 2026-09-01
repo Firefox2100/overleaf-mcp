@@ -5,12 +5,14 @@ import httpx
 from fastmcp import FastMCP
 
 from overleaf_mcp.components.auth import AuthComponent
+from overleaf_mcp.components.citation import CitationComponent
 from overleaf_mcp.components.config import ConfigComponent
 from overleaf_mcp.components.editing import EditingComponent
 from overleaf_mcp.components.files import FilesComponent
 from overleaf_mcp.misc.config import CONFIG
 from overleaf_mcp.services.credential import CredentialStoreService
 from overleaf_mcp.services.overleaf.service import OverleafService
+from overleaf_mcp.tools.citation import citation_mcp
 from overleaf_mcp.tools.compile import compile_mcp
 from overleaf_mcp.tools.config import config_mcp
 from overleaf_mcp.tools.editing import editing_mcp
@@ -28,6 +30,7 @@ async def lifespan(server: FastMCP) -> AsyncIterator[dict]:
     files_component = FilesComponent(overleaf_service.file, overleaf_service.realtime)
     editing_component = EditingComponent(files_component, overleaf_service.file, overleaf_service.realtime)
     config_component = ConfigComponent(overleaf_service.project, overleaf_service.realtime)
+    citation_component = CitationComponent(overleaf_service.file, overleaf_service.realtime)
 
     session = await auth_component.ensure_session()
 
@@ -38,6 +41,7 @@ async def lifespan(server: FastMCP) -> AsyncIterator[dict]:
         files_component=files_component,
         editing_component=editing_component,
         config_component=config_component,
+        citation_component=citation_component,
         overleaf_session=session,
     )
     publish_app_context(app_context)
@@ -54,6 +58,7 @@ mcp.mount(file_mcp, namespace="file")
 mcp.mount(compile_mcp, namespace="compile")
 mcp.mount(editing_mcp, namespace="editing")
 mcp.mount(config_mcp, namespace="config")
+mcp.mount(citation_mcp, namespace="citation")
 
 
 def run() -> None:
