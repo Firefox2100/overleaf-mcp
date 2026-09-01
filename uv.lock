@@ -713,6 +713,7 @@ dependencies = [
     { name = "platformdirs" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "websockets" },
 ]
 
 [package.metadata]
@@ -724,6 +725,7 @@ requires-dist = [
     { name = "platformdirs", specifier = ">=4.11.7" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
+    { name = "websockets", specifier = ">=17.1" },
 ]
 
 [[package]]

@@ -4,9 +4,13 @@ MCP bridge for Overleaf that uses its web API directly. Targets self-hosted [Ove
 
 ## Install
 
+### From Source Code
+
 This project is a Python package, requiring Python 3.12 or newer. Install it with `uv`:
 
 ```bash
+git clone https://github.com/Firefox2100/overleaf-mcp.git
+cd overleaf-mcp
 uv sync
 ```
 
