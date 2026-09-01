@@ -38,19 +38,28 @@ async def list_files(ctx: Context, project_id: str, path: str = "") -> list[File
         openWorldHint=True,
     ),
 )
-async def read_file(ctx: Context, project_id: str, path: str) -> str:
+async def read_file(ctx: Context, project_id: str, path: str, offset: int = 1, limit: int | None = None) -> str:
     """
     Read a text document's content. Only text documents (e.g. .tex, .bib)
-    are supported, not binary files.
+    are supported, not binary files. For a large document, use offset/limit
+    to avoid reading it in full, or use the editing tool set's read_lines
+    for a line-numbered view better suited to targeted navigation.
 
     Args:
         project_id: Id of the project, as returned by list_projects.
         path: Document path relative to the project root, e.g. "chapters/intro.tex".
+        offset: 1-indexed line to start reading from.
+        limit: Maximum number of lines to return. Unlimited if omitted.
     """
+    if offset < 1:
+        raise ValueError(f"offset must be >= 1, got {offset}")
+
     files = get_files_component(ctx)
     session = get_overleaf_session(ctx)
 
-    return await files.read_file(session, project_id, path)
+    content = await files.read_file(session, project_id, path)
+    lines = content.split("\n")
+    return "\n".join(lines[offset - 1:offset - 1 + limit if limit is not None else None])
 
 
 @file_mcp.tool(

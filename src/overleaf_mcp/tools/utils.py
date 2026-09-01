@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from fastmcp import Context, FastMCP
 
 from overleaf_mcp.components.auth import AuthComponent
+from overleaf_mcp.components.editing import EditingComponent
 from overleaf_mcp.components.files import FilesComponent
 from overleaf_mcp.models.overleaf_session import OverleafSession
 from overleaf_mcp.services.credential import CredentialStoreService
@@ -19,6 +20,7 @@ class AppContext:
     credential_store: CredentialStoreService
     auth_component: AuthComponent
     files_component: FilesComponent
+    editing_component: EditingComponent
     overleaf_session: OverleafSession
 
 
@@ -65,3 +67,7 @@ def get_overleaf_session(ctx: Context) -> OverleafSession:
 
 def get_files_component(ctx: Context) -> FilesComponent:
     return get_app_context(ctx).files_component
+
+
+def get_editing_component(ctx: Context) -> EditingComponent:
+    return get_app_context(ctx).editing_component

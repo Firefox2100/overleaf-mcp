@@ -1,6 +1,7 @@
 from httpx import AsyncClient
 
 from .auth import OverleafAuthService
+from .compile import OverleafCompileService
 from .file import OverleafFileService
 from .project import OverleafProjectService
 from .realtime import OverleafRealtimeService
@@ -16,6 +17,7 @@ class OverleafService:
         self._project = OverleafProjectService(self._client)
         self._file = OverleafFileService(self._client)
         self._realtime = OverleafRealtimeService(str(self._client.base_url))
+        self._compile = OverleafCompileService(self._client)
 
     @property
     def auth(self) -> OverleafAuthService:
@@ -32,3 +34,7 @@ class OverleafService:
     @property
     def realtime(self) -> OverleafRealtimeService:
         return self._realtime
+
+    @property
+    def compile(self) -> OverleafCompileService:
+        return self._compile
