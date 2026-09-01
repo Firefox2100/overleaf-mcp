@@ -1,0 +1,26 @@
+[project]
+name = "overleaf-mcp"
+description = "MCP bridge for Overleaf that uses its web API directly."
+readme = "README.md"
+requires-python = ">=3.12"
+
+dynamic = ["version"]
+dependencies = [
+    "fastmcp>=4.0.0",
+    "filelock>=3.32.5",
+    "httpx>=0.28.1",
+    "keyring>=25.7.0",
+    "platformdirs>=4.11.7",
+    "pydantic>=2.13.5",
+    "pydantic-settings>=2.15.0",
+]
+
+[project.scripts]
+overleaf-mcp = "overleaf_mcp.main:run"
+
+[tool.hatch.version]
+source = "vcs"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"

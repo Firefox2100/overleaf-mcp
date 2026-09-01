@@ -1,0 +1,61 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+
+from fastmcp import Context, FastMCP
+
+from overleaf_mcp.components.auth import AuthComponent
+from overleaf_mcp.models.overleaf_session import OverleafSession
+from overleaf_mcp.services.credential import CredentialStoreService
+from overleaf_mcp.services.overleaf.service import OverleafService
+
+_CONTEXT_KEY = "app"
+
+
+@dataclass
+class AppContext:
+    overleaf_service: OverleafService
+    credential_store: CredentialStoreService
+    auth_component: AuthComponent
+    overleaf_session: OverleafSession
+
+
+def app_context_state(app_context: AppContext) -> dict[str, AppContext]:
+    return {_CONTEXT_KEY: app_context}
+
+
+_published_app_context: AppContext | None = None
+
+
+def publish_app_context(app_context: AppContext) -> None:
+    """
+    Publish the app context so mounted sub-servers' lifespans can pick it up.
+    :return:
+    """
+    global _published_app_context
+    _published_app_context = app_context
+
+
+@asynccontextmanager
+async def mounted_lifespan(server: FastMCP) -> AsyncIterator[dict]:
+    """
+    Lifespan for a mounted sub-server: reuses the app context published by the
+    root server. A mounted server runs its own independent lifespan, so the
+    root's yielded context isn't visible through it directly.
+    :return:
+    """
+    if _published_app_context is None:
+        raise RuntimeError("App context has not been published by the root server's lifespan")
+    yield app_context_state(_published_app_context)
+
+
+def get_app_context(ctx: Context) -> AppContext:
+    return ctx.lifespan_context[_CONTEXT_KEY]
+
+
+def get_overleaf_service(ctx: Context) -> OverleafService:
+    return get_app_context(ctx).overleaf_service
+
+
+def get_overleaf_session(ctx: Context) -> OverleafSession:
+    return get_app_context(ctx).overleaf_session
