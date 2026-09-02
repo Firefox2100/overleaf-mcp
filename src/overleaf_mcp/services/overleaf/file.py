@@ -132,6 +132,26 @@ class OverleafFileService:
         if response.status_code != 204:
             raise OverleafFileError(f"Renaming entity failed with status {response.status_code}: {response.text}")
 
+    async def move_entity(
+            self,
+            session: OverleafSession,
+            project_id: str,
+            entity_type: EntityType,
+            entity_id: str,
+            folder_id: str,
+    ) -> None:
+        """
+        Move a doc, file, or folder into a different folder, keeping its name.
+        :return:
+        """
+        response = await self._client.post(
+            f"/project/{project_id}/{entity_type}/{entity_id}/move",
+            json={"_csrf": session.csrf_token, "folder_id": folder_id},
+            headers=session.auth_headers,
+        )
+        if response.status_code != 204:
+            raise OverleafFileError(f"Moving entity failed with status {response.status_code}: {response.text}")
+
     async def delete_entity(
             self,
             session: OverleafSession,

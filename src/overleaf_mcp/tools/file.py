@@ -113,6 +113,31 @@ async def rename_file(ctx: Context, project_id: str, path: str, name: str) -> No
 
 @file_mcp.tool(
     annotations=ToolAnnotations(
+        title="Move File",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
+async def move_file(ctx: Context, project_id: str, path: str, destination_folder: str) -> None:
+    """
+    Move a doc or file into a different folder, keeping its name. Use
+    rename_file instead to change its name without moving it.
+
+    Args:
+        project_id: Id of the project, as returned by list_projects.
+        path: Current path of the doc or file, relative to the project root.
+        destination_folder: Target folder path relative to the project root. Empty string for the project root.
+    """
+    files = get_files_component(ctx)
+    session = get_overleaf_session(ctx)
+
+    await files.move_file(session, project_id, path, destination_folder)
+
+
+@file_mcp.tool(
+    annotations=ToolAnnotations(
         title="Overwrite File",
         readOnlyHint=False,
         destructiveHint=True,

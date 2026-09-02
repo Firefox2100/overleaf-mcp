@@ -43,16 +43,41 @@ class CompileResult(CommonBase):
     )
 
 
-class DownloadedFile(CommonBase):
+class WordCount(CommonBase):
     """
-    Represents a file saved to local disk.
+    Represents a document or project's word/character counts, from CLSI's
+    texcount.
     """
 
-    path: str = Field(
-        description='Local filesystem path the file was saved to.'
+    encode: str = Field(
+        description='Text encoding texcount detected.'
     )
-    size_bytes: int = Field(
-        description='Size of the saved file in bytes.'
+    text_words: int = Field(
+        description='Word count in the main body text.'
+    )
+    head_words: int = Field(
+        description='Word count in headers (titles, section headings).'
+    )
+    outside: int = Field(
+        description='Word count outside the document environment.'
+    )
+    headers: int = Field(
+        description='Number of headers (sections, subsections, etc.).'
+    )
+    elements: int = Field(
+        description='Number of floating elements (figures, tables, etc.).'
+    )
+    math_inline: int = Field(
+        description='Number of inline math expressions.'
+    )
+    math_display: int = Field(
+        description='Number of displayed (block) math expressions.'
+    )
+    errors: int = Field(
+        description='Number of errors texcount encountered.'
+    )
+    messages: str = Field(
+        description='texcount warning/error messages, if any.'
     )
 
 

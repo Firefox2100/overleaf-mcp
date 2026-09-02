@@ -17,6 +17,7 @@ from overleaf_mcp.tools.compile import compile_mcp
 from overleaf_mcp.tools.config import config_mcp
 from overleaf_mcp.tools.editing import editing_mcp
 from overleaf_mcp.tools.file import file_mcp
+from overleaf_mcp.tools.history import history_mcp
 from overleaf_mcp.tools.project import project_mcp
 from overleaf_mcp.tools.utils import AppContext, app_context_state, publish_app_context
 
@@ -59,6 +60,7 @@ mcp.mount(compile_mcp, namespace="compile")
 mcp.mount(editing_mcp, namespace="editing")
 mcp.mount(config_mcp, namespace="config")
 mcp.mount(citation_mcp, namespace="citation")
+mcp.mount(history_mcp, namespace="history")
 
 
 def run() -> None:

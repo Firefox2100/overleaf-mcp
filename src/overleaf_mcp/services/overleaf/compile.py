@@ -1,6 +1,6 @@
 from httpx import AsyncClient
 
-from overleaf_mcp.models.compile import CompileLogEntry, CompileResult
+from overleaf_mcp.models.compile import CompileLogEntry, CompileResult, WordCount
 from overleaf_mcp.models.overleaf_session import OverleafSession
 
 from .compile_log import parse_compile_log
@@ -82,3 +82,29 @@ class OverleafCompileService:
         """
         log = await self.get_log(session, project_id, build_id, clsi_server_id)
         return [entry for entry in parse_compile_log(log) if entry.level == "error"]
+
+    async def word_count(
+            self,
+            session: OverleafSession,
+            project_id: str,
+            path: str | None = None,
+            clsi_server_id: str | None = None,
+    ) -> WordCount:
+        """
+        Get word/character counts for a document, or the whole project's
+        root document if path is omitted.
+        :return:
+        """
+        params = {}
+        if path is not None:
+            params["file"] = path
+        if clsi_server_id is not None:
+            params["clsiserverid"] = clsi_server_id
+        response = await self._client.get(
+            f"/project/{project_id}/wordcount",
+            params=params,
+            headers=session.auth_headers,
+        )
+        if response.status_code != 200:
+            raise OverleafCompileError(f"Word count failed with status {response.status_code}: {response.text}")
+        return WordCount.model_validate(response.json()["texcount"])

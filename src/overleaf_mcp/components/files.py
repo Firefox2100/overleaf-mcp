@@ -67,6 +67,18 @@ class FilesComponent:
             raise FilesError(f"{path!r} is a folder")
         await self._file.rename_entity(session, project_id, entity_type, entity_id, name)
 
+    async def move_file(self, session: OverleafSession, project_id: str, path: str, destination_folder: str) -> None:
+        """
+        Move a doc or file into a different folder, keeping its name.
+        :return:
+        """
+        tree = await self._realtime.get_tree(session, project_id)
+        entity_type, entity_id = resolve_entity(tree, path)
+        if entity_type == "folder":
+            raise FilesError(f"{path!r} is a folder")
+        target = resolve_folder(tree, destination_folder)
+        await self._file.move_entity(session, project_id, entity_type, entity_id, target.id)
+
     async def overwrite_file(self, session: OverleafSession, project_id: str, path: str, content: str) -> None:
         """
         Replace a text document's entire content.

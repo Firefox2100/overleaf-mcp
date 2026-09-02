@@ -1,5 +1,6 @@
 from httpx import AsyncClient
 
+from overleaf_mcp.models.collaborator import Collaborator
 from overleaf_mcp.models.overleaf_session import OverleafSession
 from overleaf_mcp.models.project import CreatedProject, Project, ProjectList
 
@@ -97,3 +98,44 @@ class OverleafProjectService:
         )
         if response.status_code != 204:
             raise OverleafProjectError(f"Updating settings failed with status {response.status_code}: {response.text}")
+
+    async def clone_project(self, session: OverleafSession, project_id: str, name: str) -> CreatedProject:
+        """
+        Duplicate a project as a new one owned by the session's account.
+        :return:
+        """
+        response = await self._client.post(
+            f"/Project/{project_id}/clone",
+            json={"_csrf": session.csrf_token, "projectName": name},
+            headers=session.auth_headers,
+        )
+        if response.status_code != 200:
+            raise OverleafProjectError(f"Cloning project failed with status {response.status_code}: {response.text}")
+        return CreatedProject.model_validate_json(response.text)
+
+    async def download_zip(self, session: OverleafSession, project_id: str) -> bytes:
+        """
+        Download the whole project as a zip archive.
+        :return:
+        """
+        response = await self._client.get(
+            f"/Project/{project_id}/download/zip",
+            headers=session.auth_headers,
+        )
+        if response.status_code != 200:
+            raise OverleafProjectError(f"Downloading project zip failed with status {response.status_code}: {response.text}")
+        return response.content
+
+    async def list_collaborators(self, session: OverleafSession, project_id: str) -> list[Collaborator]:
+        """
+        List a project's collaborators and their access level. Does not
+        include the owner — see get_project for that.
+        :return:
+        """
+        response = await self._client.get(
+            f"/project/{project_id}/members",
+            headers=session.auth_headers,
+        )
+        if response.status_code != 200:
+            raise OverleafProjectError(f"Listing collaborators failed with status {response.status_code}: {response.text}")
+        return [Collaborator.model_validate(member) for member in response.json()["members"]]

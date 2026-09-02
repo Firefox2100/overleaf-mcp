@@ -3,7 +3,8 @@ from pathlib import Path
 from fastmcp import Context, FastMCP
 from mcp_types import ToolAnnotations
 
-from overleaf_mcp.models.compile import CompileLogEntry, CompileResult, DownloadedFile
+from overleaf_mcp.models.compile import CompileLogEntry, CompileResult, WordCount
+from overleaf_mcp.models.download import DownloadedFile
 
 from .utils import get_overleaf_service, get_overleaf_session, mounted_lifespan
 
@@ -124,3 +125,26 @@ async def get_output_file(
     destination.write_bytes(content)
 
     return DownloadedFile(path=str(destination), size_bytes=len(content))
+
+
+@compile_mcp.tool(
+    annotations=ToolAnnotations(
+        title="Word Count",
+        readOnlyHint=True,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
+async def word_count(ctx: Context, project_id: str, path: str | None = None) -> WordCount:
+    """
+    Get word/character counts for a document, or the project's root
+    document if path is omitted. Useful for page/word-limit constraints.
+
+    Args:
+        project_id: Id of the project, as returned by list_projects.
+        path: Document path relative to the project root, e.g. "chapters/intro.tex". Root document if omitted.
+    """
+    service = get_overleaf_service(ctx)
+    session = get_overleaf_session(ctx)
+
+    return await service.compile.word_count(session, project_id, path)
