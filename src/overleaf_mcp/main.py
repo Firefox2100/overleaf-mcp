@@ -6,11 +6,14 @@ from fastmcp import FastMCP
 
 from overleaf_mcp.components.auth import AuthComponent
 from overleaf_mcp.components.citation import CitationComponent
+from overleaf_mcp.components.comment import CommentComponent
 from overleaf_mcp.components.config import ConfigComponent
 from overleaf_mcp.components.editing import EditingComponent
 from overleaf_mcp.components.files import FilesComponent
+from overleaf_mcp.components.review import ReviewComponent
 from overleaf_mcp.misc.config import CONFIG
 from overleaf_mcp.services.credential import CredentialStoreService
+from overleaf_mcp.services.overleaf.capabilities import supports_review_mode
 from overleaf_mcp.services.overleaf.service import OverleafService
 from overleaf_mcp.tools.citation import citation_mcp
 from overleaf_mcp.tools.compile import compile_mcp
@@ -19,6 +22,7 @@ from overleaf_mcp.tools.editing import editing_mcp
 from overleaf_mcp.tools.file import file_mcp
 from overleaf_mcp.tools.history import history_mcp
 from overleaf_mcp.tools.project import project_mcp
+from overleaf_mcp.tools.review import review_mcp
 from overleaf_mcp.tools.utils import AppContext, app_context_state, publish_app_context
 
 
@@ -33,6 +37,13 @@ async def lifespan(server: FastMCP) -> AsyncIterator[dict]:
     config_component = ConfigComponent(overleaf_service.project, overleaf_service.realtime)
     citation_component = CitationComponent(overleaf_service.file, overleaf_service.realtime)
 
+    review_component = None
+    comment_component = None
+    if await supports_review_mode(client):
+        review_component = ReviewComponent(overleaf_service.realtime, overleaf_service.review)
+        comment_component = CommentComponent(overleaf_service.realtime, overleaf_service.review, overleaf_service.file)
+        server.mount(review_mcp, namespace="review")
+
     session = await auth_component.ensure_session()
 
     app_context = AppContext(
@@ -44,6 +55,8 @@ async def lifespan(server: FastMCP) -> AsyncIterator[dict]:
         config_component=config_component,
         citation_component=citation_component,
         overleaf_session=session,
+        review_component=review_component,
+        comment_component=comment_component,
     )
     publish_app_context(app_context)
 

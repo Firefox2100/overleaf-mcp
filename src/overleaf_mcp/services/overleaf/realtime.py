@@ -53,9 +53,19 @@ class OverleafRealtimeService:
             reply = await sio.call("joinProject", [{"project_id": project_id}])
             return reply.args[0]["project"]
 
-    async def replace_doc(self, session: OverleafSession, project_id: str, doc_id: str, new_text: str) -> None:
+    async def replace_doc(
+            self,
+            session: OverleafSession,
+            project_id: str,
+            doc_id: str,
+            new_text: str,
+            track_changes: bool = False,
+    ) -> None:
         """
-        Replace a doc's entire content.
+        Replace a doc's entire content. If track_changes is set (CEP
+        review mode), the whole old content is recorded as a tracked
+        deletion and the new content as a tracked insertion — coarse;
+        patch_doc's targeted edit tracks more precisely.
         :return:
         """
         async with SocketIOClient(self._base_url, session.cookie_header, {"projectId": project_id}) as sio:
@@ -63,13 +73,25 @@ class OverleafRealtimeService:
             lines, version = await self._join_doc(sio, doc_id)
             old_text = "\n".join(lines)
             if old_text != new_text:
-                await self._apply_and_verify(sio, doc_id, _full_replace_op(old_text, new_text), version, new_text)
+                await self._apply_and_verify(
+                    sio, doc_id, _full_replace_op(old_text, new_text), version, new_text, track_changes,
+                )
             await self._leave_doc(sio, doc_id)
 
-    async def patch_doc(self, session: OverleafSession, project_id: str, doc_id: str, find: str, replace: str) -> None:
+    async def patch_doc(
+            self,
+            session: OverleafSession,
+            project_id: str,
+            doc_id: str,
+            find: str,
+            replace: str,
+            track_changes: bool = False,
+    ) -> None:
         """
         Replace the single occurrence of `find` in a doc with `replace`.
-        Raises if `find` doesn't occur exactly once.
+        Raises if `find` doesn't occur exactly once. If track_changes is
+        set (CEP review mode), the edit is recorded as a tracked change
+        rather than applied outright.
         :return:
         """
         async with SocketIOClient(self._base_url, session.cookie_header, {"projectId": project_id}) as sio:
@@ -88,7 +110,63 @@ class OverleafRealtimeService:
             index = old_text.index(find)
             new_text = old_text[:index] + replace + old_text[index + len(find):]
             op = ([{"p": index, "d": find}] if find else []) + ([{"p": index, "i": replace}] if replace else [])
-            await self._apply_and_verify(sio, doc_id, op, version, new_text)
+            await self._apply_and_verify(sio, doc_id, op, version, new_text, track_changes)
+            await self._leave_doc(sio, doc_id)
+
+    async def reject_change(
+            self,
+            session: OverleafSession,
+            project_id: str,
+            doc_id: str,
+            position: int,
+            text: str,
+            is_insert: bool,
+    ) -> None:
+        """
+        Reject a single tracked change (CEP review mode) by submitting its
+        inverse as a plain edit flagged `u: true` — Overleaf's own "this is
+        an undo" flag, which makes the ranges tracker remove the range
+        instead of treating it as a new, unrelated edit. A raw inverse op
+        without this flag corrupts the range instead of clearing it
+        (confirmed live). When rejecting several changes in one document,
+        callers must apply them in descending-position order — mirrors
+        Overleaf's own reject implementation, and avoids position drift
+        between sequential ops.
+        :return:
+        """
+        async with SocketIOClient(self._base_url, session.cookie_header, {"projectId": project_id}) as sio:
+            await sio.call("joinProject", [{"project_id": project_id}])
+            _lines, version = await self._join_doc(sio, doc_id)
+            op = {"p": position, "u": True, ("d" if is_insert else "i"): text}
+            ack = await sio.emit_with_ack("applyOtUpdate", [doc_id, {"doc": doc_id, "op": [op], "v": version}])
+            if ack:
+                raise OverleafRealtimeError(f"Rejecting change failed: {ack}")
+            await self._leave_doc(sio, doc_id)
+
+    async def add_comment(
+            self,
+            session: OverleafSession,
+            project_id: str,
+            doc_id: str,
+            position: int,
+            text: str,
+            thread_id: str,
+    ) -> None:
+        """
+        Anchor a new comment thread (CEP review mode) to a range of text
+        in a doc. Post the thread's first message via
+        OverleafReviewService.post_message before or after this — the two
+        are independent (thread content lives in chat storage, the anchor
+        lives in the doc's ranges).
+        :return:
+        """
+        async with SocketIOClient(self._base_url, session.cookie_header, {"projectId": project_id}) as sio:
+            await sio.call("joinProject", [{"project_id": project_id}])
+            _lines, version = await self._join_doc(sio, doc_id)
+            op = {"c": text, "p": position, "t": thread_id}
+            ack = await sio.emit_with_ack("applyOtUpdate", [doc_id, {"doc": doc_id, "op": [op], "v": version}])
+            if ack:
+                raise OverleafRealtimeError(f"Adding comment failed: {ack}")
             await self._leave_doc(sio, doc_id)
 
     async def _join_doc(self, sio: SocketIOClient, doc_id: str) -> tuple[list[str], int]:
@@ -107,10 +185,14 @@ class OverleafRealtimeService:
             op: list[dict],
             version: int,
             expected_text: str,
+            track_changes: bool = False,
     ) -> None:
         if not op:
             return
-        ack = await sio.emit_with_ack("applyOtUpdate", [doc_id, {"doc": doc_id, "op": op, "v": version}])
+        update = {"doc": doc_id, "op": op, "v": version}
+        if track_changes:
+            update["meta"] = {"tc": True}
+        ack = await sio.emit_with_ack("applyOtUpdate", [doc_id, update])
         if ack:
             raise OverleafRealtimeError(f"applyOtUpdate failed: {ack}")
 

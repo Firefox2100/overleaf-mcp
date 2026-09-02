@@ -6,9 +6,11 @@ from fastmcp import Context, FastMCP
 
 from overleaf_mcp.components.auth import AuthComponent
 from overleaf_mcp.components.citation import CitationComponent
+from overleaf_mcp.components.comment import CommentComponent
 from overleaf_mcp.components.config import ConfigComponent
 from overleaf_mcp.components.editing import EditingComponent
 from overleaf_mcp.components.files import FilesComponent
+from overleaf_mcp.components.review import ReviewComponent
 from overleaf_mcp.models.overleaf_session import OverleafSession
 from overleaf_mcp.services.credential import CredentialStoreService
 from overleaf_mcp.services.overleaf.service import OverleafService
@@ -26,6 +28,11 @@ class AppContext:
     config_component: ConfigComponent
     citation_component: CitationComponent
     overleaf_session: OverleafSession
+    # Only set when the server-capability probe confirms CEP review mode;
+    # review/comment tools are only ever mounted (and thus only ever
+    # called) then.
+    review_component: ReviewComponent | None = None
+    comment_component: CommentComponent | None = None
 
 
 def app_context_state(app_context: AppContext) -> dict[str, AppContext]:
@@ -83,3 +90,17 @@ def get_config_component(ctx: Context) -> ConfigComponent:
 
 def get_citation_component(ctx: Context) -> CitationComponent:
     return get_app_context(ctx).citation_component
+
+
+def get_review_component(ctx: Context) -> ReviewComponent:
+    component = get_app_context(ctx).review_component
+    if component is None:
+        raise RuntimeError("Review tools were called but review mode isn't available on this server")
+    return component
+
+
+def get_comment_component(ctx: Context) -> CommentComponent:
+    component = get_app_context(ctx).comment_component
+    if component is None:
+        raise RuntimeError("Comment tools were called but review mode isn't available on this server")
+    return component

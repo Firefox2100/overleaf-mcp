@@ -6,6 +6,7 @@ from .file import OverleafFileService
 from .history import OverleafHistoryService
 from .project import OverleafProjectService
 from .realtime import OverleafRealtimeService
+from .review import OverleafReviewService
 
 
 class OverleafService:
@@ -20,6 +21,7 @@ class OverleafService:
         self._realtime = OverleafRealtimeService(str(self._client.base_url))
         self._compile = OverleafCompileService(self._client)
         self._history = OverleafHistoryService(self._client)
+        self._review = OverleafReviewService(self._client)
 
     @property
     def auth(self) -> OverleafAuthService:
@@ -44,3 +46,7 @@ class OverleafService:
     @property
     def history(self) -> OverleafHistoryService:
         return self._history
+
+    @property
+    def review(self) -> OverleafReviewService:
+        return self._review
