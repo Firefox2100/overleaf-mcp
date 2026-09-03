@@ -138,6 +138,60 @@ async def move_file(ctx: Context, project_id: str, path: str, destination_folder
 
 @file_mcp.tool(
     annotations=ToolAnnotations(
+        title="Create Linked File",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
+async def create_linked_file(ctx: Context, project_id: str, path: str, url: str) -> None:
+    """
+    Create a file fetched from an external URL. Unlike create_file, this
+    is refreshable later with refresh_linked_file to re-fetch the URL.
+    The parent folder must already exist.
+
+    Args:
+        project_id: Id of the project, as returned by list_projects.
+        path: New file's path relative to the project root, e.g. "figures/plot.png".
+        url: URL to fetch the file's content from.
+    """
+    files = get_files_component(ctx)
+    session = get_overleaf_session(ctx)
+
+    await files.create_linked_url_file(session, project_id, path, url)
+
+
+@file_mcp.tool(
+    annotations=ToolAnnotations(
+        title="Refresh Linked File",
+        readOnlyHint=False,
+        destructiveHint=True,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
+async def refresh_linked_file(ctx: Context, project_id: str, path: str) -> None:
+    """
+    Re-fetch a linked file's content from its source, replacing what's
+    there now. Works for a file created with create_linked_file (a URL),
+    or one linked via the web UI to an external source such as Zotero —
+    this bridge doesn't do Zotero's account-linking itself, only triggers
+    a re-sync of an already-linked file. Use list_files to see which
+    files are linked (a non-null linked_file_data) and to what provider.
+
+    Args:
+        project_id: Id of the project, as returned by list_projects.
+        path: Path of the linked file to refresh, relative to the project root.
+    """
+    files = get_files_component(ctx)
+    session = get_overleaf_session(ctx)
+
+    await files.refresh_linked_file(session, project_id, path)
+
+
+@file_mcp.tool(
+    annotations=ToolAnnotations(
         title="Overwrite File",
         readOnlyHint=False,
         destructiveHint=True,

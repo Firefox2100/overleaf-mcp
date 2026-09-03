@@ -1,6 +1,7 @@
 from pydantic import Field
 
 from .common import CommonBase
+from .compile_image import CompileImage
 
 
 class ProjectConfig(CommonBase):
@@ -46,9 +47,15 @@ class ProjectConfig(CommonBase):
     image_name: str | None = Field(
         default=None,
         description=(
-            'TeX Live image the project is nominally configured to use. Informational only: '
-            'selecting a different image has no effect in Overleaf CE, which has no sandboxed, '
-            'multi-image compile infrastructure (that requires Server Pro) — CE always compiles '
-            'against the one TeX Live installation on the compile server.'
+            'TeX Live image the project is configured to compile with. Only meaningfully '
+            'selectable when available_images is non-empty (CEP with sandboxed compiles '
+            'enabled) — otherwise this reflects a fixed, unchangeable default.'
+        )
+    )
+    available_images: list[CompileImage] = Field(
+        default_factory=list,
+        description=(
+            'TeX Live images available to select via set_compile_image. Empty on a server '
+            'without CEP sandboxed compiles enabled.'
         )
     )

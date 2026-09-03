@@ -22,7 +22,9 @@ class ConfigComponent:
         Get a project's compile-relevant configuration.
         :return:
         """
-        return await self._realtime.get_project_info(session, project_id)
+        config = await self._realtime.get_project_info(session, project_id)
+        images = await self._project.get_available_compile_images(session, project_id)
+        return config.model_copy(update={"available_images": images})
 
     async def set_compiler(self, session: OverleafSession, project_id: str, compiler: str) -> None:
         """
@@ -53,6 +55,22 @@ class ConfigComponent:
         :return:
         """
         await self._project.update_settings(session, project_id, spell_check_language=language)
+
+    async def set_compile_image(self, session: OverleafSession, project_id: str, image_name: str) -> None:
+        """
+        Set the TeX Live image the project compiles with. Requires CEP
+        sandboxed compiles — self-verifies by re-reading the setting after
+        writing it, since a server without that feature silently ignores
+        this field rather than rejecting it.
+        :return:
+        """
+        await self._project.update_settings(session, project_id, image_name=image_name)
+        config = await self._realtime.get_project_info(session, project_id)
+        if config.image_name != image_name:
+            raise ConfigError(
+                f"Setting the compile image to {image_name!r} did not take effect — this server "
+                "likely doesn't support image selection (requires CEP with sandboxed compiles enabled)"
+            )
 
     async def _resolve_doc(self, session: OverleafSession, project_id: str, path: str) -> str:
         tree = await self._realtime.get_tree(session, project_id)

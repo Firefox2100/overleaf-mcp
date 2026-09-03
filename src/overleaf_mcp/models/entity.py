@@ -18,6 +18,14 @@ class FileEntry(CommonBase):
     type: EntityType = Field(
         description='Entry kind: a text document, a binary file, or a folder.'
     )
+    linked_file_data: dict | None = Field(
+        default=None,
+        description=(
+            'Present when this file was created from an external source (e.g. a URL import '
+            'or a Zotero-synced .bib), refreshable with refresh_linked_file. Shape varies by '
+            'provider; always has a "provider" key.'
+        )
+    )
 
 
 class CreatedEntity(CommonBase):

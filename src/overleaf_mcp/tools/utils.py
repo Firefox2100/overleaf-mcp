@@ -10,6 +10,7 @@ from overleaf_mcp.components.comment import CommentComponent
 from overleaf_mcp.components.config import ConfigComponent
 from overleaf_mcp.components.editing import EditingComponent
 from overleaf_mcp.components.files import FilesComponent
+from overleaf_mcp.components.pandoc import PandocComponent
 from overleaf_mcp.components.review import ReviewComponent
 from overleaf_mcp.models.overleaf_session import OverleafSession
 from overleaf_mcp.services.credential import CredentialStoreService
@@ -33,6 +34,9 @@ class AppContext:
     # called) then.
     review_component: ReviewComponent | None = None
     comment_component: CommentComponent | None = None
+    # Same story: only set when the server-capability probe confirms CEP
+    # Pandoc conversions are enabled.
+    pandoc_component: PandocComponent | None = None
 
 
 def app_context_state(app_context: AppContext) -> dict[str, AppContext]:
@@ -103,4 +107,11 @@ def get_comment_component(ctx: Context) -> CommentComponent:
     component = get_app_context(ctx).comment_component
     if component is None:
         raise RuntimeError("Comment tools were called but review mode isn't available on this server")
+    return component
+
+
+def get_pandoc_component(ctx: Context) -> PandocComponent:
+    component = get_app_context(ctx).pandoc_component
+    if component is None:
+        raise RuntimeError("Pandoc tools were called but Pandoc conversions aren't available on this server")
     return component

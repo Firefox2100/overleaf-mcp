@@ -112,6 +112,50 @@ class OverleafFileService:
             raise OverleafFileError(f"Uploading file failed with status {response.status_code}: {response.text}")
         return UploadedFile.model_validate_json(response.text)
 
+    async def create_linked_file(
+            self,
+            session: OverleafSession,
+            project_id: str,
+            name: str,
+            provider: str,
+            data: dict,
+            parent_folder_id: str,
+    ) -> str:
+        """
+        Create a file fetched from an external source. Returns the new
+        file's id.
+        :return:
+        """
+        response = await self._client.post(
+            f"/project/{project_id}/linked_file",
+            json={
+                "_csrf": session.csrf_token,
+                "name": name,
+                "provider": provider,
+                "data": data,
+                "parent_folder_id": parent_folder_id,
+            },
+            headers=session.auth_headers,
+        )
+        if response.status_code != 200:
+            raise OverleafFileError(f"Creating linked file failed with status {response.status_code}: {response.text}")
+        return response.json()["new_file_id"]
+
+    async def refresh_linked_file(self, session: OverleafSession, project_id: str, file_id: str) -> str:
+        """
+        Re-fetch a linked file's content from its source, replacing it in
+        place. Returns the (new) file's id.
+        :return:
+        """
+        response = await self._client.post(
+            f"/project/{project_id}/linked_file/{file_id}/refresh",
+            json={"_csrf": session.csrf_token},
+            headers=session.auth_headers,
+        )
+        if response.status_code != 200:
+            raise OverleafFileError(f"Refreshing linked file failed with status {response.status_code}: {response.text}")
+        return response.json()["new_file_id"]
+
     async def rename_entity(
             self,
             session: OverleafSession,

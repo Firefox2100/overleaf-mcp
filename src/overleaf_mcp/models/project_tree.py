@@ -22,6 +22,13 @@ class TreeEntity(CommonBase):
     name: str = Field(
         description='Entity name.'
     )
+    linked_file_data: dict | None = Field(
+        default=None,
+        description=(
+            'Present on a file created from an external source (e.g. a URL import or a '
+            'Zotero-synced .bib). Shape varies by provider; always has a "provider" key.'
+        )
+    )
 
 
 class TreeFolder(CommonBase):

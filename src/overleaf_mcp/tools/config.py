@@ -134,3 +134,30 @@ async def set_spell_check_language(ctx: Context, project_id: str, language: str)
     session = get_overleaf_session(ctx)
 
     await config.set_spell_check_language(session, project_id, language)
+
+
+@config_mcp.tool(
+    annotations=ToolAnnotations(
+        title="Set Compile Image",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
+async def set_compile_image(ctx: Context, project_id: str, image_name: str) -> None:
+    """
+    Set the TeX Live image the project compiles with, from
+    get_project_config's available_images. Only has an effect where the
+    server supports it (CEP with sandboxed compiles enabled) — raises
+    otherwise, since the underlying setting is silently ignored rather
+    than rejected when unsupported.
+
+    Args:
+        project_id: Id of the project, as returned by list_projects.
+        image_name: Image to compile with, from get_project_config's available_images.
+    """
+    config = get_config_component(ctx)
+    session = get_overleaf_session(ctx)
+
+    await config.set_compile_image(session, project_id, image_name)
