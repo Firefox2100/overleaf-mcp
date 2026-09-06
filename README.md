@@ -114,3 +114,5 @@ Tools are grouped into namespaces, each mounted as its own set of `<namespace>_<
 | `pandoc`   | only if `enablePandocConversions` (CEP)       | Export a whole project to `.docx`/Markdown/HTML, and import a `.docx`/`.md` file into a project.                                                              |
 
 Every tool operates on an already-authenticated session established at startup — there is no per-call login, and no tool exposes credentials or session details to the client.
+
+Each tool's docstring documents its own parameters and behavior in detail. For the concepts that span multiple tools — the `project_id`/path conventions, read-before-write safety, and typical multi-step workflows (editing, compiling, citations, review, history) — see [`skill/SKILL.md`](skill/SKILL.md). It's written as a portable [Claude skill](https://www.anthropic.com/news/skills): drop the `skill` folder into an MCP client's skills directory (e.g. `.claude/skills/overleaf-mcp` for Claude Code) to give it that context automatically.

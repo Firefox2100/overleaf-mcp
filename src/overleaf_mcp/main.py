@@ -87,7 +87,24 @@ async def lifespan(server: FastMCP) -> AsyncIterator[dict]:
         await client.aclose()
 
 
-mcp = FastMCP("overleaf-mcp", lifespan=lifespan)
+mcp = FastMCP(
+    "overleaf-mcp",
+    lifespan=lifespan,
+    instructions=(
+        "Bridge to one Overleaf account (Community Edition, optionally CEP-extended), "
+        "already authenticated at startup. Tools are namespaced as "
+        "<namespace>_<tool>: project, file, compile, editing, config, citation, and "
+        "history are always available; review, github, and pandoc appear only when "
+        "the connected server supports them, and simply don't exist otherwise. "
+        "Call project_list_projects first to get a project_id — nearly every other "
+        "tool needs one. Paths are always project-relative (e.g. 'chapters/intro.tex'), "
+        "never absolute. This is a live, multi-writer system with no local cache: "
+        "read a document before patching or overwriting it, since patch_file-family "
+        "tools require their `find` text to match exactly once in the document's "
+        "current content, and overwrite_file-family tools verify the write landed as "
+        "intended and raise rather than silently losing a concurrent edit."
+    ),
+)
 mcp.mount(project_mcp, namespace="project")
 mcp.mount(file_mcp, namespace="file")
 mcp.mount(compile_mcp, namespace="compile")
