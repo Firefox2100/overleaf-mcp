@@ -16,7 +16,9 @@ from overleaf_mcp.components.review import ReviewComponent
 from overleaf_mcp.misc.config import CONFIG
 from overleaf_mcp.services.credential import CredentialStoreService
 from overleaf_mcp.services.overleaf.capabilities import supports_review_mode
+from overleaf_mcp.services.overleaf.project import OverleafProjectError
 from overleaf_mcp.services.overleaf.service import OverleafService
+from overleaf_mcp.tools.auth import auth_mcp
 from overleaf_mcp.tools.citation import citation_mcp
 from overleaf_mcp.tools.compile import compile_mcp
 from overleaf_mcp.tools.config import config_mcp
@@ -55,7 +57,13 @@ async def lifespan(server: FastMCP) -> AsyncIterator[dict]:
     # project editor page's bootstrap data, so detecting them needs an
     # actual project to load. If the account has none, these stay off.
     pandoc_component = None
-    projects = await overleaf_service.project.list_projects(session)
+    try:
+        projects = await overleaf_service.project.list_projects(session)
+    except OverleafProjectError as error:
+        if error.status_code not in (401, 403):
+            raise
+        session, _ = await auth_component.refresh()
+        projects = await overleaf_service.project.list_projects(session)
     if projects:
         exposed_settings = await overleaf_service.project.get_exposed_settings(session, projects[0].id)
         if exposed_settings.get("githubSyncEnabled"):
@@ -93,8 +101,8 @@ mcp = FastMCP(
     instructions=(
         "Bridge to one Overleaf account (Community Edition, optionally CEP-extended), "
         "already authenticated at startup. Tools are namespaced as "
-        "<namespace>_<tool>: project, file, compile, editing, config, citation, and "
-        "history are always available; review, github, and pandoc appear only when "
+        "<namespace>_<tool>: auth, project, file, compile, editing, config, citation, "
+        "and history are always available; review, github, and pandoc appear only when "
         "the connected server supports them, and simply don't exist otherwise. "
         "Call project_list_projects first to get a project_id — nearly every other "
         "tool needs one. Paths are always project-relative (e.g. 'chapters/intro.tex'), "
@@ -106,6 +114,7 @@ mcp = FastMCP(
     ),
 )
 mcp.mount(project_mcp, namespace="project")
+mcp.mount(auth_mcp, namespace="auth")
 mcp.mount(file_mcp, namespace="file")
 mcp.mount(compile_mcp, namespace="compile")
 mcp.mount(editing_mcp, namespace="editing")

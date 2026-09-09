@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from overleaf_mcp.models.overleaf_session import OverleafSession
 from overleaf_mcp.models.project_config import ProjectConfig
 from overleaf_mcp.models.project_tree import TreeFolder, find_doc_path
@@ -173,7 +175,7 @@ class OverleafRealtimeService:
         error, lines, version, *_rest = await sio.emit_with_ack("joinDoc", [doc_id, -1, {}])
         if error:
             raise OverleafRealtimeError(f"joinDoc failed: {error}")
-        return lines, version
+        return [_decode_websocket_text(line) for line in lines], version
 
     async def _leave_doc(self, sio: SocketIOClient, doc_id: str) -> None:
         await sio.emit("leaveDoc", [doc_id])
@@ -191,7 +193,9 @@ class OverleafRealtimeService:
             return
         update = {"doc": doc_id, "op": op, "v": version}
         if track_changes:
-            update["meta"] = {"tc": True}
+            # Overleaf's ranges tracker expects an 18-character hexadecimal
+            # seed and appends a six-character increment to form ObjectIds.
+            update["meta"] = {"tc": uuid4().hex[:18]}
         ack = await sio.emit_with_ack("applyOtUpdate", [doc_id, update])
         if ack:
             raise OverleafRealtimeError(f"applyOtUpdate failed: {ack}")
@@ -215,3 +219,8 @@ def _full_replace_op(old_text: str, new_text: str) -> list[dict]:
     if new_text:
         op.append({"p": 0, "i": new_text})
     return op
+
+
+def _decode_websocket_text(text: str) -> str:
+    """Reverse Overleaf's unescape(encodeURIComponent(text)) encoding."""
+    return text.encode("latin-1").decode("utf-8")

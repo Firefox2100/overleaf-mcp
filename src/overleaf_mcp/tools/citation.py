@@ -16,7 +16,8 @@ def _read_only(title: str) -> ToolAnnotations:
 @citation_mcp.tool(annotations=_read_only("List Citation Files"))
 async def list_citation_files(ctx: Context, project_id: str) -> list[str]:
     """
-    List every .bib file in a project, recursively.
+    List every .bib file in a project, recursively — a linked .bib (e.g.
+    Zotero-synced) shows up the same as any other .bib file.
 
     Args:
         project_id: Id of the project, as returned by list_projects.

@@ -76,6 +76,10 @@ def get_overleaf_service(ctx: Context) -> OverleafService:
     return get_app_context(ctx).overleaf_service
 
 
+def get_auth_component(ctx: Context) -> AuthComponent:
+    return get_app_context(ctx).auth_component
+
+
 def get_overleaf_session(ctx: Context) -> OverleafSession:
     return get_app_context(ctx).overleaf_session
 

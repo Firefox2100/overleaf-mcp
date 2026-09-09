@@ -1,12 +1,64 @@
-from overleaf_mcp.models.entity import EntityType, FileEntry
+from overleaf_mcp.models.entity import EntityType, FileContent, FileEntry
 from overleaf_mcp.models.overleaf_session import OverleafSession
-from overleaf_mcp.models.project_tree import TreeFolder, path_segments, resolve_entity, resolve_folder
+from overleaf_mcp.models.project_tree import TreeFolder, path_segments, resolve_entity, resolve_entity_ref, resolve_folder
 from overleaf_mcp.services.overleaf.file import OverleafFileService
 from overleaf_mcp.services.overleaf.realtime import OverleafRealtimeService
 
 
 class FilesError(Exception):
     """Raised when a file operation's path doesn't resolve as expected."""
+
+
+async def read_entity_text(
+        file_service: OverleafFileService,
+        session: OverleafSession,
+        project_id: str,
+        path: str,
+        entity_type: EntityType,
+        entity_id: str,
+) -> str:
+    """
+    Read a doc or file entity's content as text, regardless of which
+    Overleaf storage mechanism it's actually in. A "doc" (a live,
+    collaboratively-edited document) is fetched through the doc endpoint;
+    a "file" (a binary upload, or a linked file such as a Zotero-synced
+    .bib or a URL import) is fetched as bytes and decoded as UTF-8 — this
+    is what makes a linked file's content show up in file/search/citation
+    tools without the client needing to know it's linked. Raises
+    FilesError for a folder, or a "file" whose bytes aren't valid UTF-8
+    (a genuinely binary file, e.g. an image).
+    :return:
+    """
+    if entity_type == "folder":
+        raise FilesError(f"{path!r} is a folder")
+    if entity_type == "doc":
+        return await file_service.read_doc(session, project_id, entity_id)
+    content = await file_service.read_file(session, project_id, entity_id)
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise FilesError(f"{path!r} is a binary file, not readable as text") from e
+
+
+async def try_read_entity_text(
+        file_service: OverleafFileService,
+        session: OverleafSession,
+        project_id: str,
+        path: str,
+        entity_type: EntityType,
+        entity_id: str,
+) -> str | None:
+    """
+    Same as read_entity_text, but returns None instead of raising for a
+    folder or an undecodable binary file — for bulk/scanning callers
+    (project-wide search, citation checks) that should silently skip
+    entries they can't read as text rather than failing the whole scan.
+    :return:
+    """
+    try:
+        return await read_entity_text(file_service, session, project_id, path, entity_type, entity_id)
+    except FilesError:
+        return None
 
 
 class FilesComponent:
@@ -33,15 +85,22 @@ class FilesComponent:
             ]
         )
 
-    async def read_file(self, session: OverleafSession, project_id: str, path: str) -> str:
+    async def read_file(self, session: OverleafSession, project_id: str, path: str) -> FileContent:
         """
-        Read a text document's content.
+        Read a document's or file's content as text, along with whether
+        it's a linked file. Transparently covers both a doc and a "file"
+        entry with text content (a binary upload with an actual binary
+        payload still raises) — including a linked file such as a
+        Zotero-synced .bib, which reads the same as any other text
+        document.
         :return:
         """
         tree = await self._realtime.get_tree(session, project_id)
-        entity_type, entity_id = resolve_entity(tree, path)
-        _require_doc(path, entity_type)
-        return await self._file.read_doc(session, project_id, entity_id)
+        entity_type, entity = resolve_entity_ref(tree, path)
+        if entity_type == "folder":
+            raise FilesError(f"{path!r} is a folder")
+        content = await read_entity_text(self._file, session, project_id, path, entity_type, entity.id)
+        return FileContent(content=content, type=entity_type, linked_file_data=entity.linked_file_data)
 
     async def create_file(self, session: OverleafSession, project_id: str, path: str, content: str = "") -> None:
         """
@@ -143,8 +202,14 @@ class FilesComponent:
 
 
 def _require_doc(path: str, entity_type: EntityType) -> None:
+    if entity_type == "folder":
+        raise FilesError(f"{path!r} is a folder")
     if entity_type != "doc":
-        raise FilesError(f"{path!r} is not a text document")
+        raise FilesError(
+            f"{path!r} is a file entry, not a document, and can't be edited directly — this covers "
+            "both binary uploads and linked files (e.g. a Zotero-synced .bib), which are read-only "
+            "here; use refresh_linked_file to update a linked file from its source instead"
+        )
 
 
 def _split_path(path: str) -> tuple[str, str]:

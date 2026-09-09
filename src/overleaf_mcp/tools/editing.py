@@ -18,9 +18,11 @@ editing_mcp = FastMCP("editing", lifespan=mounted_lifespan)
 )
 async def search_project(ctx: Context, project_id: str, query: str, regex: bool = False) -> list[SearchMatch]:
     """
-    Search every text document in a project for a plain substring or, if
-    regex is set, a regular expression. Fetches and searches every
-    document's content itself — Overleaf has no server-side project search.
+    Search every text-readable document or file in a project for a plain
+    substring or, if regex is set, a regular expression — a linked file
+    (e.g. a Zotero-synced .bib) is included transparently; a genuinely
+    binary file is silently skipped. Fetches and searches every entity's
+    content itself — Overleaf has no server-side project search.
 
     Args:
         project_id: Id of the project, as returned by list_projects.

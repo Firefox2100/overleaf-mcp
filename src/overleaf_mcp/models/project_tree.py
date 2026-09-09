@@ -78,6 +78,24 @@ def find_doc_path(folder: TreeFolder, doc_id: str) -> str | None:
     return next((path for path, id_ in flatten_docs(folder) if id_ == doc_id), None)
 
 
+def flatten_entities(folder: TreeFolder, prefix: str = "") -> list[tuple[str, EntityType, str]]:
+    """
+    Return (path, entity_type, entity_id) for every doc and file in the
+    tree, depth-first. entity_type is "doc" or "file" — unlike
+    flatten_docs, this also includes file_refs (binary uploads and linked
+    files, e.g. a Zotero-synced .bib), which is what content-scanning
+    operations (search, citations) need to see them.
+    """
+    entities: list[tuple[str, EntityType, str]] = (
+        [(f"{prefix}/{doc.name}" if prefix else doc.name, "doc", doc.id) for doc in folder.docs]
+        + [(f"{prefix}/{f.name}" if prefix else f.name, "file", f.id) for f in folder.file_refs]
+    )
+    for child in folder.folders:
+        child_prefix = f"{prefix}/{child.name}" if prefix else child.name
+        entities += flatten_entities(child, child_prefix)
+    return entities
+
+
 def resolve_folder(root: TreeFolder, path: str) -> TreeFolder:
     folder = root
     for segment in path_segments(path):
@@ -88,7 +106,11 @@ def resolve_folder(root: TreeFolder, path: str) -> TreeFolder:
     return folder
 
 
-def resolve_entity(root: TreeFolder, path: str) -> tuple[EntityType, str]:
+def resolve_entity_ref(root: TreeFolder, path: str) -> tuple[EntityType, TreeEntity | TreeFolder]:
+    """
+    Resolve a path to its entity, keeping the full tree object rather than
+    just its id — needed to read a "file" entity's linked_file_data.
+    """
     segments = path_segments(path)
     if not segments:
         raise PathResolutionError("Path must not be empty")
@@ -96,11 +118,16 @@ def resolve_entity(root: TreeFolder, path: str) -> tuple[EntityType, str]:
     name = segments[-1]
     for child in folder.folders:
         if child.name == name:
-            return "folder", child.id
+            return "folder", child
     for child in folder.docs:
         if child.name == name:
-            return "doc", child.id
+            return "doc", child
     for child in folder.file_refs:
         if child.name == name:
-            return "file", child.id
+            return "file", child
     raise PathResolutionError(f"No such path: {path!r}")
+
+
+def resolve_entity(root: TreeFolder, path: str) -> tuple[EntityType, str]:
+    entity_type, entity = resolve_entity_ref(root, path)
+    return entity_type, entity.id

@@ -3,11 +3,11 @@ import re
 
 from overleaf_mcp.models.editing import OutlineEntry, SearchMatch
 from overleaf_mcp.models.overleaf_session import OverleafSession
-from overleaf_mcp.models.project_tree import flatten_docs
+from overleaf_mcp.models.project_tree import flatten_entities
 from overleaf_mcp.services.overleaf.file import OverleafFileService
 from overleaf_mcp.services.overleaf.realtime import OverleafRealtimeService
 
-from .files import FilesComponent
+from .files import FilesComponent, try_read_entity_text
 
 _SECTION_LEVELS = ["part", "chapter", "section", "subsection", "subsubsection", "paragraph", "subparagraph"]
 _SECTION_PATTERN = re.compile(
@@ -38,20 +38,27 @@ class EditingComponent:
             regex: bool = False,
     ) -> list[SearchMatch]:
         """
-        Search every text document in a project for a plain substring or
-        regex pattern. Overleaf has no server-side search API for this —
-        its own editor searches client-side over content it already has;
-        this fetches every document itself instead, so it's O(doc count)
-        requests.
+        Search every text-readable document or file in a project for a
+        plain substring or regex pattern — including a linked file (e.g.
+        a Zotero-synced .bib) transparently; a genuinely binary file is
+        silently skipped. Overleaf has no server-side search API for this
+        — its own editor searches client-side over content it already
+        has; this fetches every entity itself instead, so it's
+        O(entity count) requests.
         :return:
         """
         tree = await self._realtime.get_tree(session, project_id)
-        docs = flatten_docs(tree)
-        contents = await asyncio.gather(*(self._file.read_doc(session, project_id, doc_id) for _, doc_id in docs))
+        entities = flatten_entities(tree)
+        contents = await asyncio.gather(*(
+            try_read_entity_text(self._file, session, project_id, path, entity_type, entity_id)
+            for path, entity_type, entity_id in entities
+        ))
 
         pattern = re.compile(query) if regex else None
         matches: list[SearchMatch] = []
-        for (path, _doc_id), content in zip(docs, contents):
+        for (path, _entity_type, _entity_id), content in zip(entities, contents):
+            if content is None:
+                continue
             matches.extend(_search_text(path, content, query, pattern))
         return matches
 
@@ -67,7 +74,7 @@ class EditingComponent:
         Search a single text document for a plain substring or regex pattern.
         :return:
         """
-        content = await self._files.read_file(session, project_id, path)
+        content = (await self._files.read_file(session, project_id, path)).content
         pattern = re.compile(query) if regex else None
         return _search_text(path, content, query, pattern)
 
@@ -80,7 +87,7 @@ class EditingComponent:
         definitions, unwrap \\texorpdfstring, or include beamer frames.
         :return:
         """
-        content = await self._files.read_file(session, project_id, path)
+        content = (await self._files.read_file(session, project_id, path)).content
         return _build_outline(content)
 
     async def read_lines(
@@ -99,7 +106,7 @@ class EditingComponent:
         if start_line < 1 or start_line > end_line:
             raise EditingError(f"Invalid line range: {start_line}-{end_line}")
 
-        content = await self._files.read_file(session, project_id, path)
+        content = (await self._files.read_file(session, project_id, path)).content
         lines = content.split("\n")
         selected = lines[start_line - 1:end_line]
         width = len(str(min(end_line, len(lines))))

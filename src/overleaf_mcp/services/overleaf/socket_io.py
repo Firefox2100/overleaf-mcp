@@ -55,6 +55,7 @@ class _RawWebSocket:
         self._reader = reader
         self._writer = writer
         self._closed = False
+        self.close_detail: str | None = None
 
     @classmethod
     async def connect(cls, url: str, headers: dict[str, str]) -> "_RawWebSocket":
@@ -123,6 +124,12 @@ class _RawWebSocket:
                 return None
             opcode, fin, payload = frame
             if opcode == _CLOSE_OPCODE:
+                if len(payload) >= 2:
+                    code = struct.unpack("!H", payload[:2])[0]
+                    reason = payload[2:].decode(errors="replace")
+                    self.close_detail = f"code={code}, reason={reason!r}"
+                else:
+                    self.close_detail = "without a status code"
                 await self._send_close()
                 return None
             if opcode == _PING_OPCODE:
@@ -321,7 +328,10 @@ class SocketIOClient:
             while True:
                 frame = await self._ws.recv()
                 if frame is None:
-                    self._connection_error = SocketIOError("Connection closed by server")
+                    detail = self._ws.close_detail
+                    self._connection_error = SocketIOError(
+                        "Connection closed by server" + (f" ({detail})" if detail else "")
+                    )
                     break
                 self._handle_frame(frame)
         finally:

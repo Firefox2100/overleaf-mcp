@@ -1,6 +1,6 @@
 ---
 name: overleaf-mcp
-description: Use the overleaf-mcp MCP server to work with an Overleaf project — read, search, and edit LaTeX documents, compile and check errors, manage citations, review/track changes, and inspect history. Use whenever a task involves an Overleaf project through the `project`/`file`/`compile`/`editing`/`config`/`citation`/`history`/`review`/`github`/`pandoc` MCP tools, or when the user mentions Overleaf, a `.tex`/`.bib` document living on Overleaf, or a project id that looks like a Mongo ObjectId in that context.
+description: Use the overleaf-mcp MCP server to work with an Overleaf project — refresh authentication, read, search, and edit LaTeX documents, compile and check errors, manage citations, review/track changes, and inspect history. Use whenever a task involves an Overleaf project through the `auth`/`project`/`file`/`compile`/`editing`/`config`/`citation`/`history`/`review`/`github`/`pandoc` MCP tools, or when the user mentions Overleaf, a `.tex`/`.bib` document living on Overleaf, or a project id that looks like a Mongo ObjectId in that context.
 ---
 
 # Overleaf MCP bridge
@@ -19,9 +19,15 @@ against the live project state. There is no local cache: a `file_read_file` imme
 `file_overwrite_file` sees the new content, and two agents (or an agent and a human) editing the
 same project concurrently will race exactly like two browser tabs would.
 
-Tools are namespaced (`project_*`, `file_*`, `compile_*`, `editing_*`, `config_*`, `citation_*`,
-`history_*`, and conditionally `review_*`, `github_*`, `pandoc_*`). The namespace prefix on a
+Tools are namespaced (`auth_*`, `project_*`, `file_*`, `compile_*`, `editing_*`, `config_*`,
+`citation_*`, `history_*`, and conditionally `review_*`, `github_*`, `pandoc_*`). The namespace prefix on a
 tool's name tells you which of these concept groups it belongs to.
+
+**Refresh an expired session before retrying a failed operation.** If an authenticated call
+returns 401 or 403, call `auth_refresh_authentication` once, then retry the original operation.
+The refresh attempts to log out the current server-side session, but still clears the local
+session and signs in again if logout fails because the old session is already invalid. It updates
+the running server's in-memory session as well as its persisted credentials.
 
 ## Core concepts
 
@@ -34,10 +40,21 @@ argument.
 `/chapters/intro.tex` or a full URL. The project root is `""` (empty string), not `"/"`. This
 applies uniformly across `file_*`, `editing_*`, `config_*`, `citation_*`, and `history_*` tools.
 
-**Only text documents are readable/writable as text.** `.tex`, `.bib`, and other plain-text files
-work with `file_read_file`, `file_overwrite_file`, `file_patch_file`, etc. Binary files (images,
-PDFs) are opaque to these tools — they can be listed (`file_list_files`) and linked
-(`file_create_linked_file`) but not read or patched as text.
+**Reading text is transparent to storage mechanism; writing isn't.** Overleaf stores a project
+entity one of two ways: a "doc" (a live, collaboratively-edited document) or a "file" (a binary
+upload, or a linked file synced from an external source — a URL import, or a Zotero-linked `.bib`).
+`file_read_file` (and everything built on it: `editing_search_file`/`search_project`,
+`editing_get_outline`, `editing_read_lines`, `citation_*`) reads either kind the same way and
+doesn't require you to know or check which one a path is — a linked `.bib` shows up in
+`citation_list_citations` right alongside an ordinary one. A genuinely binary file (an image, a
+PDF) still can't be read as text and raises. Writing is where the distinction actually matters:
+`file_overwrite_file`/`file_patch_file` only work on a doc — a file entry of either kind is
+read-only through them and raises; refresh a linked file with `file_refresh_linked_file` instead
+of trying to edit its content directly (this works for any provider, including Zotero — this
+bridge doesn't do the Zotero account-linking itself, only triggers a re-sync of an already-linked
+file). `file_list_files` and `file_read_file` both surface `type` ("doc" vs "file") and
+`linked_file_data` (present with a `provider` key when the entry is linked, `None` otherwise) —
+use these instead of guessing from a path or extension whether something is editable or linked.
 
 **Read before you write.** This is a live, multi-writer system, so a stale in-context copy of a
 document is a real risk, not a hypothetical one:

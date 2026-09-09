@@ -16,6 +16,10 @@ _EXPOSED_SETTINGS_PATTERN = re.compile(r'<meta name="ol-ExposedSettings"[^>]*con
 class OverleafProjectError(Exception):
     """Raised when Overleaf rejects a project operation."""
 
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+
 
 class OverleafProjectService:
     def __init__(self,
@@ -34,7 +38,10 @@ class OverleafProjectService:
             headers=session.auth_headers,
         )
         if response.status_code != 200:
-            raise OverleafProjectError(f"Listing projects failed with status {response.status_code}: {response.text}")
+            raise OverleafProjectError(
+                f"Listing projects failed with status {response.status_code}: {response.text}",
+                response.status_code,
+            )
         return ProjectList.model_validate_json(response.text).projects
 
     async def get_project(self, session: OverleafSession, project_id: str) -> Project:

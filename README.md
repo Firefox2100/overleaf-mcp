@@ -102,6 +102,7 @@ Tools are grouped into namespaces, each mounted as its own set of `<namespace>_<
 
 | Namespace  | Always mounted                                | Purpose                                                                                                                                                       |
 |------------|-----------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auth`     | yes                                           | Replace an expired or invalid session by clearing it and signing in again, attempting remote logout first.                                                   |
 | `project`  | yes                                           | List, fetch, create, delete, and clone projects; download a project as a zip; list collaborators.                                                             |
 | `file`     | yes                                           | Read, list, create, rename, move, overwrite, patch, and delete files; create/refresh linked files (e.g. imported from a URL, or Zotero-linked `.bib` on CEP). |
 | `compile`  | yes                                           | Trigger a compile (draft or full), fetch compile logs/errors, download an output file, and get a word count.                                                  |
@@ -113,6 +114,6 @@ Tools are grouped into namespaces, each mounted as its own set of `<namespace>_<
 | `github`   | only if `githubSyncEnabled` (CEP)             | Read GitHub sync state and trigger a sync. Linking/unlinking a repository stays a web-UI action, out of scope here.                                           |
 | `pandoc`   | only if `enablePandocConversions` (CEP)       | Export a whole project to `.docx`/Markdown/HTML, and import a `.docx`/`.md` file into a project.                                                              |
 
-Every tool operates on an already-authenticated session established at startup — there is no per-call login, and no tool exposes credentials or session details to the client.
+Every project operation uses the current authenticated session. If it expires, `auth_refresh_authentication` replaces it using the server's configured credentials without exposing credentials, cookies, or CSRF tokens to the client.
 
 Each tool's docstring documents its own parameters and behavior in detail. For the concepts that span multiple tools — the `project_id`/path conventions, read-before-write safety, and typical multi-step workflows (editing, compiling, citations, review, history) — see [`skill/SKILL.md`](skill/SKILL.md). It's written as a portable [Claude skill](https://www.anthropic.com/news/skills): drop the `skill` folder into an MCP client's skills directory (e.g. `.claude/skills/overleaf-mcp` for Claude Code) to give it that context automatically.

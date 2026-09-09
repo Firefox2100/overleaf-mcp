@@ -1,7 +1,7 @@
 from fastmcp import Context, FastMCP
 from mcp_types import ToolAnnotations
 
-from overleaf_mcp.models.entity import FileEntry
+from overleaf_mcp.models.entity import FileContent, FileEntry
 
 from .utils import get_files_component, get_overleaf_session, mounted_lifespan
 
@@ -38,11 +38,20 @@ async def list_files(ctx: Context, project_id: str, path: str = "") -> list[File
         openWorldHint=True,
     ),
 )
-async def read_file(ctx: Context, project_id: str, path: str, offset: int = 1, limit: int | None = None) -> str:
+async def read_file(
+    ctx: Context,
+    project_id: str,
+    path: str,
+    offset: int = 1,
+    limit: int | None = None,
+) -> FileContent:
     """
-    Read a text document's content. Only text documents (e.g. .tex, .bib)
-    are supported, not binary files. For a large document, use offset/limit
-    to avoid reading it in full, or use the editing tool set's read_lines
+    Read a document's or file's content as text, along with whether it's
+    a linked file — a regular document, a binary upload's text-decodable
+    content, or a linked file (e.g. a Zotero-synced .bib, or a URL
+    import) all work the same way here; a genuinely binary file (e.g. an
+    image) raises instead. For a large document, use offset/limit to
+    avoid reading it in full, or use the editing tool set's read_lines
     for a line-numbered view better suited to targeted navigation.
 
     Args:
@@ -57,9 +66,10 @@ async def read_file(ctx: Context, project_id: str, path: str, offset: int = 1, l
     files = get_files_component(ctx)
     session = get_overleaf_session(ctx)
 
-    content = await files.read_file(session, project_id, path)
-    lines = content.split("\n")
-    return "\n".join(lines[offset - 1:offset - 1 + limit if limit is not None else None])
+    result = await files.read_file(session, project_id, path)
+    lines = result.content.split("\n")
+    sliced = "\n".join(lines[offset - 1:offset - 1 + limit if limit is not None else None])
+    return FileContent(content=sliced, type=result.type, linked_file_data=result.linked_file_data)
 
 
 @file_mcp.tool(
@@ -201,7 +211,10 @@ async def refresh_linked_file(ctx: Context, project_id: str, path: str) -> None:
 )
 async def overwrite_file(ctx: Context, project_id: str, path: str, content: str) -> None:
     """
-    Replace a text document's entire content. If a concurrent edit is
+    Replace a text document's entire content. Only a document works here —
+    a file entry (a binary upload, or a linked file such as a Zotero-
+    synced .bib) is read-only through this tool and raises; refresh a
+    linked file with refresh_linked_file instead. If a concurrent edit is
     detected (this is a live co-editing platform), the write is verified
     after the fact and this raises rather than silently losing it — the
     document may already have a mixed-in result and should be re-read.
@@ -228,10 +241,13 @@ async def overwrite_file(ctx: Context, project_id: str, path: str, content: str)
 )
 async def patch_file(ctx: Context, project_id: str, path: str, find: str, replace: str) -> None:
     """
-    Replace one occurrence of exact text in a document. `find` must occur
-    exactly once in the document's current content, or this raises rather
-    than guessing. Subject to the same concurrent-edit verification as
-    overwrite_file.
+    Replace one occurrence of exact text in a document. Only a document
+    works here — a file entry (a binary upload, or a linked file such as
+    a Zotero-synced .bib) is read-only through this tool and raises; use
+    refresh_linked_file to update a linked file from its source instead.
+    `find` must occur exactly once in the document's current content, or
+    this raises rather than guessing. Subject to the same concurrent-edit
+    verification as overwrite_file.
 
     Args:
         project_id: Id of the project, as returned by list_projects.

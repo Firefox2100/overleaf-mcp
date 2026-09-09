@@ -6,9 +6,11 @@ import bibtexparser
 from overleaf_mcp.models.citation import CitationCheckResult, CitationEntry
 from overleaf_mcp.models.editing import SearchMatch
 from overleaf_mcp.models.overleaf_session import OverleafSession
-from overleaf_mcp.models.project_tree import flatten_docs
+from overleaf_mcp.models.project_tree import flatten_entities
 from overleaf_mcp.services.overleaf.file import OverleafFileService
 from overleaf_mcp.services.overleaf.realtime import OverleafRealtimeService
+
+from .files import read_entity_text, try_read_entity_text
 
 # Matches \cite, \citep, \citet, \citeauthor, \citeyear(par), \parencite,
 # \textcite, \footcite, \autocite, \fullcite, \nocite, and starred/optional-
@@ -30,11 +32,13 @@ class CitationComponent:
 
     async def list_citation_files(self, session: OverleafSession, project_id: str) -> list[str]:
         """
-        List every .bib file in a project, recursively.
+        List every .bib file in a project, recursively — including a
+        linked .bib (e.g. Zotero-synced), which shows up the same as any
+        other .bib file.
         :return:
         """
         tree = await self._realtime.get_tree(session, project_id)
-        return [path for path, _doc_id in flatten_docs(tree) if path.lower().endswith(".bib")]
+        return [path for path, _entity_type, _entity_id in flatten_entities(tree) if path.lower().endswith(".bib")]
 
     async def list_citations(
             self,
@@ -44,22 +48,25 @@ class CitationComponent:
     ) -> list[CitationEntry]:
         """
         List BibTeX entries. Reads every .bib file in the project, or just
-        `path` if given.
+        `path` if given — transparently including a linked .bib.
         :return:
         """
         tree = await self._realtime.get_tree(session, project_id)
-        docs = flatten_docs(tree)
+        entities = flatten_entities(tree)
         if path is not None:
-            doc_id = next((doc_id for doc_path, doc_id in docs if doc_path == path), None)
-            if doc_id is None:
+            match = next((e for e in entities if e[0] == path), None)
+            if match is None:
                 raise CitationError(f"No such path: {path!r}")
-            targets = [(path, doc_id)]
+            targets = [match]
         else:
-            targets = [(doc_path, doc_id) for doc_path, doc_id in docs if doc_path.lower().endswith(".bib")]
+            targets = [e for e in entities if e[0].lower().endswith(".bib")]
 
-        contents = await asyncio.gather(*(self._file.read_doc(session, project_id, doc_id) for _, doc_id in targets))
+        contents = await asyncio.gather(*(
+            read_entity_text(self._file, session, project_id, path, entity_type, entity_id)
+            for path, entity_type, entity_id in targets
+        ))
         entries = []
-        for (doc_path, _doc_id), content in zip(targets, contents):
+        for (doc_path, _entity_type, _entity_id), content in zip(targets, contents):
             entries += _parse_bib(content, doc_path)
         return entries
 
@@ -114,10 +121,26 @@ class CitationComponent:
             session: OverleafSession,
             project_id: str,
     ) -> tuple[list[tuple[str, str]], list[str]]:
+        """
+        Read every text-readable entity in the project — docs and text
+        file_refs alike (including linked files), skipping ones that
+        aren't decodable as text.
+        """
         tree = await self._realtime.get_tree(session, project_id)
-        docs = flatten_docs(tree)
-        contents = await asyncio.gather(*(self._file.read_doc(session, project_id, doc_id) for _, doc_id in docs))
-        return docs, contents
+        entities = flatten_entities(tree)
+        contents = await asyncio.gather(*(
+            try_read_entity_text(self._file, session, project_id, path, entity_type, entity_id)
+            for path, entity_type, entity_id in entities
+        ))
+        readable = [
+            ((path, entity_id), content)
+            for (path, _entity_type, entity_id), content in zip(entities, contents)
+            if content is not None
+        ]
+        if not readable:
+            return [], []
+        docs, texts = zip(*readable)
+        return list(docs), list(texts)
 
 
 def _split_keys(raw_keys: str) -> list[str]:
