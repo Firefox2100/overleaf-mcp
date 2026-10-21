@@ -15,7 +15,9 @@ from .files import read_entity_text, try_read_entity_text
 # Matches \cite, \citep, \citet, \citeauthor, \citeyear(par), \parencite,
 # \textcite, \footcite, \autocite, \fullcite, \nocite, and starred/optional-
 # arg variants — anything containing "cite" in the command name.
-_CITE_PATTERN = re.compile(r"\\[A-Za-z]*[Cc]ite[A-Za-z]*\*?(?:\[[^\]]*\])*\{(?P<keys>[^}]*)\}")
+_CITE_PATTERN = re.compile(
+    r"\\[A-Za-z]*[Cc]ite[A-Za-z]*\*?(?>(?:\[[^\]\r\n]*\])*)\{(?P<keys>[^}\r\n]*)\}"
+)
 
 
 class CitationError(Exception):
