@@ -1,0 +1,12 @@
+[run]
+branch = True
+source = overleaf_mcp
+relative_files = True
+
+[report]
+fail_under = 80
+show_missing = True
+skip_covered = True
+
+[xml]
+output = coverage.xml

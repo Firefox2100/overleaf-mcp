@@ -17,6 +17,11 @@ dependencies = [
     "websockets>=17.1",
 ]
 
+[dependency-groups]
+dev = [
+    "coverage>=7.13.0,<8",
+]
+
 [project.scripts]
 overleaf-mcp = "overleaf_mcp.main:run"
 

@@ -17,6 +17,9 @@ jobs:
   scan:
     name: SonarCloud scan
     runs-on: ubuntu-latest
+    env:
+      OMCP_OVERLEAF_EMAIL: test@example.com
+      OMCP_OVERLEAF_PASSWORD: test-password
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -29,6 +32,17 @@ jobs:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
+
+      - name: Install locked dependencies
+        run: |
+          python -m pip install uv==0.11.8
+          uv sync --locked
+
+      - name: Run tests with coverage
+        run: |
+          uv run coverage run -m unittest discover -s tests -v
+          uv run coverage report
+          uv run coverage xml
 
       - name: Scan with SonarCloud
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
